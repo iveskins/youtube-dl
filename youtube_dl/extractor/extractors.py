@@ -1417,6 +1417,7 @@ from .wsj import (
     WSJArticleIE,
 )
 from .wwe import WWEIE
+from .wfmu import WfmuRecentMp3ArchiveShowIE
 from .xbef import XBefIE
 from .xboxclips import XboxClipsIE
 from .xfileshare import XFileShareIE
