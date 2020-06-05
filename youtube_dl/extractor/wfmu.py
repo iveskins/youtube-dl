@@ -72,7 +72,15 @@ class WfmuRecentMp3ArchiveShowIE(InfoExtractor):
         segments = self._extract_segments(playlist)
         #self.report_extraction(segments)
         chapters = []
-        for segment, next_segment in zip(segments, segments[1:]):
+        # Transform xml segemnts datastructure to mp4 metadata chapter structure.
+        # metadata needs a chapter start time and endtime. wfmy playlist xml only has start time.
+        # get the end time from the start time of the next item
+        # zip together the segments list [0..last-1] with [1...last] so [0,1,2,3,4] -> [(0,1),(1,2)(2,3)]
+        # the last chapter needs to be handled seperatly. the endtime should be the duration of the file.
+        # TODO: get the duration.
+        # There seems to be a lot of edge cases where data is just missing form segements the xml. 
+        # so take nothing for granted.
+        for segment, next_segment in zip(segments[:-1], segments[1:]):
             artist = self._text_or_none(segment.find('artist'), "NA")
             title =  self._text_or_none(segment.find('title'), "Untitled")
             starttime = str_or_none(segment.find('startTime').get('msec'),'0')
@@ -81,6 +89,10 @@ class WfmuRecentMp3ArchiveShowIE(InfoExtractor):
             if starttime is '':
                 starttime = '0'
             if endtime is '':
+                endtime = starttime
+            if starttime > endtime:
+                starttime = endtime
+            if endtime < starttime:
                 endtime = starttime
             #if artist is None:
             #    artist = 'NA'
@@ -105,9 +117,13 @@ class WfmuRecentMp3ArchiveShowIE(InfoExtractor):
 #              'title': chapter_title,
 #          })
         last_segment = segments[-1]
+        laststarttime = str_or_none(last_segment.find('startTime').get('msec'), '0')
+        if laststarttime is '':
+            laststarttime = str_or_none(segments[-2].find('startTime').get('msec'), '0')
+        lastendtime = laststarttime # should be duration
         chapters.append(self._add_chapter(
-            str_or_none(last_segment.find('startTime').get('msec'), '0'),
-            str_or_none(last_segment.find('startTime').get('msec'), '0'),
+            laststarttime,
+            lastendtime,
             '{artist} - {title}'.format(
                     artist=self._text_or_none(last_segment.find('artist'), "NA"), 
                     title=self._text_or_none(last_segment.find('title'), "Unknown")
@@ -123,7 +139,6 @@ class WfmuRecentMp3ArchiveShowIE(InfoExtractor):
         archive_id = self._match_group(url,'archive')
         show_playlist_url = 'https://wfmu.org/playlists/shows/' + show_id + '/starttimes.xml'
         
-        #[generic] x: Requesting header
         #self.to_screen('%s: Requesting header' %show_id)
         formats = self._extract_m3u8_formats(url, show_id, 'mp4') 
 
@@ -145,7 +160,7 @@ class WfmuRecentMp3ArchiveShowIE(InfoExtractor):
         audio_url = webpage.strip()
 
         chapters = self._extract_chapters(show_playlist)
-        self.report_extraction(chapters)
+        #self.report_extraction(chapters)
 
         info_dict = {
             'id':           show_id + '-' +  archive_id,
@@ -154,6 +169,7 @@ class WfmuRecentMp3ArchiveShowIE(InfoExtractor):
             'title':        "example",
             'extractor':    'generic',
             'formats':      formats,
+            'description': show_playlist,
         }
         return info_dict
 
